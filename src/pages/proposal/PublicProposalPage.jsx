@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Camera, Video, Megaphone, Palette, MapPin, ChartNoAxesCombined, Target, Sparkles, ArrowUpRight, Check, MessageCircle } from 'lucide-react';
+import { Camera, Video, Megaphone, Palette, MapPin, ChartNoAxesCombined, Target, Sparkles, ArrowUpRight, Check, MessageCircle, ChevronLeft, ChevronRight, X, Maximize2 } from 'lucide-react';
 import mnuBlanco from '../../assets/MNU-BLANCO.webp';
 import { getPublishedProposal } from '../../services/proposalsService';
 import { getProposalMedia } from '../../data/proposalMedia';
@@ -37,6 +37,8 @@ function StaggerList({ children, className = '' }) {
 export default function PublicProposalPage() {
   const { slug } = useParams(); const [proposal, setProposal] = useState(null); const [loading, setLoading] = useState(true); const [notFound, setNotFound] = useState(false);
   const [headerShrunk, setHeaderShrunk] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const [lightboxIndex, setLightboxIndex] = useState(null);
 
   useEffect(() => { let active = true; getPublishedProposal(slug).then(({ data, error }) => { if (!active) return; if (error || !data) setNotFound(true); else setProposal(data); setLoading(false); }); return () => { active = false; }; }, [slug]);
 
@@ -48,6 +50,22 @@ export default function PublicProposalPage() {
 
   const sections = useMemo(() => [...(proposal?.proposal_sections ?? [])].sort((a, b) => a.order_index - b.order_index), [proposal]);
   const hero = sections.find((s) => s.section_type === 'hero')?.content ?? {}; const services = sections.find((s) => s.section_type === 'services'); const strategy = sections.find((s) => s.section_type === 'text'); const pricing = sections.find((s) => s.section_type === 'pricing')?.content ?? {}; const theme = themeMap[hero.category] ?? themeMap.empresarial;
+  const gallery = Array.isArray(hero.gallery) ? hero.gallery : [];
+
+  useEffect(() => {
+    if (galleryIndex >= gallery.length) setGalleryIndex(0);
+  }, [gallery.length, galleryIndex]);
+
+  useEffect(() => {
+    if (lightboxIndex === null) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setLightboxIndex(null);
+      if (event.key === 'ArrowRight') setLightboxIndex((current) => (current + 1) % gallery.length);
+      if (event.key === 'ArrowLeft') setLightboxIndex((current) => (current - 1 + gallery.length) % gallery.length);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxIndex, gallery.length]);
 
   if (loading) return (
     <div className="min-h-screen bg-black text-white grid place-items-center">
@@ -80,7 +98,9 @@ export default function PublicProposalPage() {
       <header className={`fixed top-0 inset-x-0 z-50 border-b border-white/10 transition-all duration-500 ${headerShrunk ? 'bg-black/95 backdrop-blur-2xl' : 'bg-black/85 backdrop-blur-xl'}`}>
         <div className={`max-w-7xl mx-auto px-5 md:px-10 flex items-center justify-between transition-all duration-500 ${headerShrunk ? 'h-14' : 'h-20'}`}>
           <Link to="/">
-            <img src={mnuBlanco} alt="mnü" className={`object-contain transition-all duration-500 ${headerShrunk ? 'h-4' : 'h-6'}`} />
+            {hero.clientLogo ? (
+              <span className="inline-flex items-center justify-center rounded-xl bg-white px-3 py-1.5 max-w-36 h-11 shadow-lg"><img src={hero.clientLogo} alt={`Logo de ${proposal.client_name}`} className="max-w-full max-h-full object-contain" /></span>
+            ) : <img src={mnuBlanco} alt="mnü" className={`object-contain transition-all duration-500 ${headerShrunk ? 'h-4' : 'h-6'}`} />}
           </Link>
           <div className="flex items-center gap-5">
             <span className="hidden sm:block text-[9px] text-neutral-500 uppercase tracking-[.25em]">Propuesta privada · {proposal.client_name}</span>
@@ -129,6 +149,45 @@ export default function PublicProposalPage() {
                   <p className="text-xl md:text-3xl font-black uppercase tracking-tight mt-2">Estrategia · Contenido · Resultados</p>
                 </div>
               </div>
+            </div>
+          </RevealSection>
+        )}
+
+        {/* ─── Client image gallery ─── */}
+        {gallery.length > 0 && (
+          <RevealSection className="py-20 md:py-32 px-5 md:px-10 bg-white">
+            <div className="max-w-7xl mx-auto">
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 md:mb-12">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[.3em] text-neutral-400">Galería del proyecto</p>
+                  <h2 className="text-4xl md:text-7xl font-black uppercase tracking-tighter leading-[.9] mt-4">Una mirada<br className="hidden md:block" /> más cercana.</h2>
+                </div>
+                <p className="text-sm text-neutral-500 max-w-sm">Explora las imágenes y amplíalas para ver cada detalle.</p>
+              </div>
+              <div className="relative rounded-[1.5rem] md:rounded-[2rem] overflow-hidden bg-neutral-100 aspect-[4/3] md:aspect-[16/8] group/gallery">
+                <img src={gallery[galleryIndex]} alt={`Imagen ${galleryIndex + 1} de ${proposal.client_name}`} className="w-full h-full object-cover transition-transform duration-700 group-hover/gallery:scale-[1.02]" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent pointer-events-none" />
+                <span className="absolute left-5 bottom-5 md:left-8 md:bottom-8 text-white text-[10px] font-black uppercase tracking-[.25em]">{String(galleryIndex + 1).padStart(2, '0')} <span className="text-white/50">/ {String(gallery.length).padStart(2, '0')}</span></span>
+                <button type="button" onClick={() => setLightboxIndex(galleryIndex)} aria-label="Ampliar imagen de la galería" className="absolute right-5 bottom-5 md:right-8 md:bottom-8 flex items-center gap-2 rounded-full bg-white text-black px-4 py-3 text-[9px] font-black uppercase tracking-widest hover:bg-[var(--proposal-accent)] transition-colors">
+                  <Maximize2 size={14} /> Ver imagen
+                </button>
+                {gallery.length > 1 && (
+                  <>
+                    <button type="button" aria-label="Imagen anterior" onClick={() => setGalleryIndex((galleryIndex - 1 + gallery.length) % gallery.length)} className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/50 text-white backdrop-blur grid place-items-center hover:bg-white hover:text-black transition-colors"><ChevronLeft size={20} /></button>
+                    <button type="button" aria-label="Siguiente imagen" onClick={() => setGalleryIndex((galleryIndex + 1) % gallery.length)} className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/50 text-white backdrop-blur grid place-items-center hover:bg-white hover:text-black transition-colors"><ChevronRight size={20} /></button>
+                  </>
+                )}
+              </div>
+              {gallery.length > 1 && (
+                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3 mt-3">
+                  {gallery.map((src, index) => (
+                    <button type="button" key={`${src}-${index}`} onClick={() => setGalleryIndex(index)} aria-label={`Mostrar imagen ${index + 1}`} aria-current={galleryIndex === index ? 'true' : undefined} className={`relative aspect-[4/3] overflow-hidden rounded-xl bg-neutral-100 group/thumb focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--proposal-accent)] ${galleryIndex === index ? 'ring-2 ring-[var(--proposal-accent)]' : ''}`}>
+                      <img src={src} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover/thumb:scale-110" />
+                      <span className="absolute inset-0 bg-black/20 opacity-0 group-hover/thumb:opacity-100 transition-opacity" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </RevealSection>
         )}
@@ -233,11 +292,27 @@ export default function PublicProposalPage() {
         </RevealSection>
       </main>
 
+      {lightboxIndex !== null && gallery[lightboxIndex] && (
+        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl p-4 md:p-10 grid place-items-center" role="dialog" aria-modal="true" aria-label="Galería de imágenes">
+          <button type="button" onClick={() => setLightboxIndex(null)} aria-label="Cerrar galería" className="absolute top-5 right-5 md:top-8 md:right-8 w-11 h-11 rounded-full border border-white/20 text-white grid place-items-center hover:bg-white hover:text-black transition-colors"><X size={20} /></button>
+          {gallery.length > 1 && (
+            <>
+              <button type="button" onClick={() => setLightboxIndex((lightboxIndex - 1 + gallery.length) % gallery.length)} aria-label="Imagen anterior" className="absolute left-3 md:left-8 top-1/2 -translate-y-1/2 w-11 h-11 md:w-14 md:h-14 rounded-full bg-white/10 text-white grid place-items-center hover:bg-white hover:text-black transition-colors"><ChevronLeft size={24} /></button>
+              <button type="button" onClick={() => setLightboxIndex((lightboxIndex + 1) % gallery.length)} aria-label="Siguiente imagen" className="absolute right-3 md:right-8 top-1/2 -translate-y-1/2 w-11 h-11 md:w-14 md:h-14 rounded-full bg-white/10 text-white grid place-items-center hover:bg-white hover:text-black transition-colors"><ChevronRight size={24} /></button>
+            </>
+          )}
+          <div className="max-w-6xl max-h-full w-full flex flex-col items-center justify-center">
+            <img src={gallery[lightboxIndex]} alt={`Imagen ${lightboxIndex + 1} de ${proposal.client_name}`} className="max-h-[78vh] max-w-full object-contain rounded-xl" />
+            <p className="text-white/60 text-[10px] uppercase tracking-[.25em] mt-5">{proposal.client_name} · {String(lightboxIndex + 1).padStart(2, '0')} / {String(gallery.length).padStart(2, '0')}</p>
+          </div>
+        </div>
+      )}
+
       {/* ─── Footer ─── */}
       <footer className="bg-black text-white px-5 md:px-10 py-10 relative">
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--proposal-accent)]/30 to-transparent" />
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row gap-6 justify-between items-center">
-          <img src={mnuBlanco} alt="mnü" className="h-6" />
+          {hero.clientLogo ? <span className="inline-flex items-center justify-center rounded-xl bg-white px-3 py-1.5 w-32 h-12"><img src={hero.clientLogo} alt={`Logo de ${proposal.client_name}`} className="max-w-full max-h-full object-contain" /></span> : <img src={mnuBlanco} alt="mnü" className="h-6" />}
           <p className="text-[9px] uppercase tracking-[.25em] text-neutral-600">Propuesta preparada especialmente para {proposal.client_name}</p>
         </div>
       </footer>

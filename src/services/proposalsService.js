@@ -1,9 +1,33 @@
 import { supabase } from '../lib/supabase';
+const PROPOSAL_ASSETS_BUCKET = 'proposal-assets';
+
 export const listProposals = () => supabase.from('proposals').select('id, client_name, name, slug, status, updated_at, published_at').order('updated_at', { ascending: false });
 
 export const getProposalForAdmin = (id) => supabase.from('proposals').select('*, proposal_sections(*)').eq('id', id).single();
 export const getPublishedProposal = (slug) => supabase.from('proposals').select('*, proposal_sections(*)').eq('slug', slug).eq('status', 'published').single();
 export const deleteProposal = (id) => supabase.from('proposals').delete().eq('id', id);
+
+export async function uploadProposalAsset(folderId, file, kind) {
+  const extensionByType = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+  const extension = extensionByType[file.type];
+  if (!extension) return { data: null, error: new Error('Formato no compatible. Usa PNG, JPG o WebP.') };
+
+  const assetId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const path = `proposals/${folderId}/${kind}/${assetId}.${extension}`;
+  try {
+    const { error } = await supabase.storage.from(PROPOSAL_ASSETS_BUCKET).upload(path, file, {
+      cacheControl: '3600',
+      contentType: file.type,
+      upsert: false,
+    });
+    if (error) return { data: null, error };
+
+    const { data } = supabase.storage.from(PROPOSAL_ASSETS_BUCKET).getPublicUrl(path);
+    return { data: { path, url: data.publicUrl }, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
 
 export async function saveProposal({ id, proposal, sections }) {
   const { data: authData, error: authError } = await supabase.auth.getUser();
