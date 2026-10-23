@@ -7,6 +7,10 @@ import { getProposalMedia } from '../../data/proposalMedia';
 
 const icons = { camera: Camera, video: Video, megaphone: Megaphone, palette: Palette, location: MapPin, chart: ChartNoAxesCombined, target: Target, sparkles: Sparkles };
 const themeMap = { empresarial: { accent: '#f59e0b' }, gastronomico: { accent: '#f97316' }, inmobiliario: { accent: '#84cc16' } };
+const getDescriptionLines = (description) => String(description ?? '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
+  const bullet = /^(?:·|•|▪|\*|-)\s*/.test(line);
+  return { text: line.replace(/^(?:·|•|▪|\*|-)\s*/, ''), bullet };
+});
 
 /* ─── Scroll Reveal Hook ─── */
 function useScrollReveal() {
@@ -49,7 +53,7 @@ export default function PublicProposalPage() {
   }, []);
 
   const sections = useMemo(() => [...(proposal?.proposal_sections ?? [])].sort((a, b) => a.order_index - b.order_index), [proposal]);
-  const hero = sections.find((s) => s.section_type === 'hero')?.content ?? {}; const services = sections.find((s) => s.section_type === 'services'); const strategy = sections.find((s) => s.section_type === 'text'); const pricing = sections.find((s) => s.section_type === 'pricing')?.content ?? {}; const theme = themeMap[hero.category] ?? themeMap.empresarial;
+  const hero = sections.find((s) => s.section_type === 'hero')?.content ?? {}; const services = sections.find((s) => s.section_type === 'services'); const strategy = sections.find((s) => s.section_type === 'text'); const customSections = Array.isArray(services?.content?.additionalSections) ? services.content.additionalSections : []; const pricing = sections.find((s) => s.section_type === 'pricing')?.content ?? {}; const theme = themeMap[hero.category] ?? themeMap.empresarial;
   const gallery = Array.isArray(hero.gallery) ? hero.gallery : [];
 
   useEffect(() => {
@@ -88,8 +92,10 @@ export default function PublicProposalPage() {
   );
 
   const whatsappUrl = `https://wa.me/526142775603?text=${encodeURIComponent(`${pricing.whatsappMessage || 'Hola, me interesa esta propuesta.'}\n\nPropuesta: ${proposal.name}\n${window.location.href}`)}`;
-  const heroMedia = getProposalMedia(hero.heroImage, hero.category, 'hero');
-  const featureMedia = getProposalMedia(hero.featureImage, hero.category, 'feature');
+  const displayPrice = pricing.displayPrice?.trim();
+  const formattedPrice = displayPrice || (pricing.price ? `$${Number(pricing.price).toLocaleString('es-MX')}` : 'Por definir');
+  const heroMedia = hero.heroImage?.startsWith('http') ? { src: hero.heroImage, position: 'center' } : getProposalMedia(hero.heroImage, hero.category, 'hero');
+  const featureMedia = hero.featureImage?.startsWith('http') ? { src: hero.featureImage, position: 'center' } : getProposalMedia(hero.featureImage, hero.category, 'feature');
 
   return (
     <div className="bg-[#f5f3ee] text-neutral-950 min-h-screen" style={{ '--proposal-accent': theme.accent }}>
@@ -99,7 +105,7 @@ export default function PublicProposalPage() {
         <div className={`max-w-7xl mx-auto px-5 md:px-10 flex items-center justify-between transition-all duration-500 ${headerShrunk ? 'h-14' : 'h-20'}`}>
           <Link to="/">
             {hero.clientLogo ? (
-              <span className="inline-flex items-center justify-center rounded-xl bg-white px-3 py-1.5 max-w-36 h-11 shadow-lg"><img src={hero.clientLogo} alt={`Logo de ${proposal.client_name}`} className="max-w-full max-h-full object-contain" /></span>
+              <img src={hero.clientLogo} alt={`Logo de ${proposal.client_name}`} className={`max-w-36 object-contain transition-all duration-500 ${headerShrunk ? 'h-8' : 'h-10'}`} />
             ) : <img src={mnuBlanco} alt="mnü" className={`object-contain transition-all duration-500 ${headerShrunk ? 'h-4' : 'h-6'}`} />}
           </Link>
           <div className="flex items-center gap-5">
@@ -164,8 +170,10 @@ export default function PublicProposalPage() {
                 </div>
                 <p className="text-sm text-neutral-500 max-w-sm">Explora las imágenes y amplíalas para ver cada detalle.</p>
               </div>
-              <div className="relative rounded-[1.5rem] md:rounded-[2rem] overflow-hidden bg-neutral-100 aspect-[4/3] md:aspect-[16/8] group/gallery">
-                <img src={gallery[galleryIndex]} alt={`Imagen ${galleryIndex + 1} de ${proposal.client_name}`} className="w-full h-full object-cover transition-transform duration-700 group-hover/gallery:scale-[1.02]" />
+              <div className="relative rounded-[1.5rem] md:rounded-[2rem] overflow-hidden bg-neutral-100 aspect-[4/5] md:aspect-[16/8] group/gallery">
+                <button type="button" onClick={() => setLightboxIndex(galleryIndex)} aria-label="Abrir galería a pantalla completa" className="absolute inset-0 h-full w-full cursor-zoom-in text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--proposal-accent)]">
+                  <img src={gallery[galleryIndex]} alt={`Imagen ${galleryIndex + 1} de ${proposal.client_name}`} className="w-full h-full object-cover transition-transform duration-700 group-hover/gallery:scale-[1.02]" />
+                </button>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent pointer-events-none" />
                 <span className="absolute left-5 bottom-5 md:left-8 md:bottom-8 text-white text-[10px] font-black uppercase tracking-[.25em]">{String(galleryIndex + 1).padStart(2, '0')} <span className="text-white/50">/ {String(gallery.length).padStart(2, '0')}</span></span>
                 <button type="button" onClick={() => setLightboxIndex(galleryIndex)} aria-label="Ampliar imagen de la galería" className="absolute right-5 bottom-5 md:right-8 md:bottom-8 flex items-center gap-2 rounded-full bg-white text-black px-4 py-3 text-[9px] font-black uppercase tracking-widest hover:bg-[var(--proposal-accent)] transition-colors">
@@ -181,7 +189,7 @@ export default function PublicProposalPage() {
               {gallery.length > 1 && (
                 <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3 mt-3">
                   {gallery.map((src, index) => (
-                    <button type="button" key={`${src}-${index}`} onClick={() => setGalleryIndex(index)} aria-label={`Mostrar imagen ${index + 1}`} aria-current={galleryIndex === index ? 'true' : undefined} className={`relative aspect-[4/3] overflow-hidden rounded-xl bg-neutral-100 group/thumb focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--proposal-accent)] ${galleryIndex === index ? 'ring-2 ring-[var(--proposal-accent)]' : ''}`}>
+                    <button type="button" key={`${src}-${index}`} onClick={() => { setGalleryIndex(index); setLightboxIndex(index); }} aria-label={`Abrir imagen ${index + 1} de la galería`} aria-current={galleryIndex === index ? 'true' : undefined} className={`relative aspect-[4/3] overflow-hidden rounded-xl bg-neutral-100 group/thumb focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--proposal-accent)] ${galleryIndex === index ? 'ring-2 ring-[var(--proposal-accent)]' : ''}`}>
                       <img src={src} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover/thumb:scale-110" />
                       <span className="absolute inset-0 bg-black/20 opacity-0 group-hover/thumb:opacity-100 transition-opacity" />
                     </button>
@@ -201,24 +209,34 @@ export default function PublicProposalPage() {
                   <p className="text-[10px] font-black uppercase tracking-[.3em] text-[var(--proposal-accent)]">02 · Lo que incluye</p>
                   <h2 className="text-5xl md:text-7xl font-black uppercase tracking-tighter leading-[.9] mt-4">{services.title}</h2>
                 </div>
-                <p className="text-neutral-400 text-sm md:text-base leading-relaxed">{services.content?.intro}</p>
+                {services.content?.intro && <p className="text-neutral-400 text-sm md:text-base leading-relaxed">{services.content.intro}</p>}
               </RevealSection>
-              <StaggerList className="grid md:grid-cols-2 lg:grid-cols-3 border-t border-white/15">
+              <StaggerList className="grid items-start md:grid-cols-2 lg:grid-cols-3 border-t border-white/15">
                 {(services.content?.items ?? []).map((item, index) => {
                   const Icon = icons[item.icon] ?? Sparkles;
+                  const descriptionLines = getDescriptionLines(item.description);
                   return (
-                    <article key={`${item.title}-${index}`} className="group py-8 md:p-8 border-b md:border-r border-white/15 hover:bg-white/[.04] transition-all duration-500 relative overflow-hidden">
+                    <article key={`${item.title}-${index}`} className="group relative overflow-hidden border-b border-white/15 transition-colors duration-300 hover:bg-white/[.04] md:border-r">
                       {/* Hover gradient overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-br from-[var(--proposal-accent)]/[.04] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                      <div className="relative">
+                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[var(--proposal-accent)]/[.04] to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+                      <div className="relative px-5 py-7 md:p-8">
                         <div className="flex justify-between items-start">
                           <span className="w-14 h-14 rounded-2xl bg-[var(--proposal-accent)] text-black grid place-items-center group-hover:scale-110 group-hover:shadow-lg group-hover:shadow-[color-mix(in_srgb,var(--proposal-accent),transparent_70%)] transition-all duration-500">
                             <Icon size={26} />
                           </span>
                           <span className="text-4xl font-black text-white/10 group-hover:text-white/[.06] transition-colors">{String(index + 1).padStart(2, '0')}</span>
                         </div>
-                        <h3 className="text-xl font-black uppercase tracking-tight mt-8">{item.title}</h3>
-                        <p className="text-sm text-neutral-500 leading-relaxed mt-3">{item.description}</p>
+                        <h3 className="mt-8 text-xl font-black uppercase tracking-tight">{item.title || 'Servicio'}</h3>
+                        <div className="mt-5 space-y-3 border-t border-white/10 pt-5 text-sm leading-relaxed text-neutral-300">
+                          {descriptionLines.length ? descriptionLines.map((line, lineIndex) => line.bullet ? (
+                            <div key={lineIndex} className="flex items-start gap-3">
+                              <span aria-hidden="true" className="mt-0.5 shrink-0 font-black text-[var(--proposal-accent)]">·</span>
+                              <p className="min-w-0 break-words">{line.text}</p>
+                            </div>
+                          ) : <p key={lineIndex} className="whitespace-pre-line break-words">{line.text}</p>) : (
+                            <p>Los detalles de este servicio se confirmarán con el equipo de MNU.</p>
+                          )}
+                        </div>
                       </div>
                     </article>
                   );
@@ -259,6 +277,34 @@ export default function PublicProposalPage() {
           </section>
         )}
 
+        {/* ─── Additional proposal sections ─── */}
+        {customSections.map((section, sectionIndex) => (
+          <RevealSection key={`${section.title}-${sectionIndex}`} className={`py-20 md:py-28 px-5 md:px-10 ${sectionIndex % 2 ? 'bg-white' : 'bg-[#f5f3ee]'}`}>
+            <div className="max-w-7xl mx-auto">
+              <div className="max-w-3xl mb-10 md:mb-14">
+                <p className="text-[10px] font-black uppercase tracking-[.3em] text-[var(--proposal-accent)]">{String(4 + sectionIndex).padStart(2, '0')} · Apartado</p>
+                <h2 className="mt-4 text-4xl font-black uppercase leading-[.92] tracking-tighter md:text-6xl">{section.title}</h2>
+                {section.intro && <p className="mt-5 max-w-2xl text-sm leading-relaxed text-neutral-500 md:text-base">{section.intro}</p>}
+              </div>
+              {section.items?.length > 0 && (
+                <StaggerList className="grid border-t border-neutral-300 md:grid-cols-2 lg:grid-cols-3">
+                  {section.items.map((item, index) => {
+                    const Icon = icons[item.icon] ?? Sparkles;
+                    return <article key={`${item.title}-${index}`} className="group relative overflow-hidden border-b border-neutral-300 py-7 transition-colors duration-300 hover:bg-black/[.025] md:p-7 md:border-r">
+                      <div className="flex items-start justify-between gap-4">
+                        <span className="grid h-12 w-12 place-items-center rounded-2xl bg-black text-[var(--proposal-accent)] transition-transform duration-300 group-hover:scale-110"><Icon size={21} /></span>
+                        <span className="text-3xl font-black text-neutral-200">{String(index + 1).padStart(2, '0')}</span>
+                      </div>
+                      {item.title && <h3 className="mt-6 text-lg font-black uppercase tracking-tight">{item.title}</h3>}
+                      {item.description && <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-neutral-500">{item.description}</p>}
+                    </article>;
+                  })}
+                </StaggerList>
+              )}
+            </div>
+          </RevealSection>
+        ))}
+
         {/* ─── Pricing ─── */}
         <RevealSection id="inversion" className="relative py-20 md:py-32 px-5 md:px-10 bg-[var(--proposal-accent)] text-black overflow-hidden">
           {/* Decorative circles */}
@@ -266,7 +312,7 @@ export default function PublicProposalPage() {
           <div className="absolute -left-16 top-10 w-48 h-48 rounded-full border-[40px] border-black/[.04]" />
           <div className="relative max-w-7xl mx-auto grid lg:grid-cols-[1fr_.85fr] gap-12 items-end">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[.3em] opacity-55">04 · Inversión</p>
+              <p className="text-[10px] font-black uppercase tracking-[.3em] opacity-55">{String(4 + customSections.length).padStart(2, '0')} · Inversión</p>
               <h2 className="text-5xl md:text-8xl font-black uppercase tracking-tighter leading-[.82] mt-5">Hagamos que suceda.</h2>
               <p className="max-w-lg mt-8 text-base opacity-70">Si esta propuesta se alinea con lo que buscas, escríbenos y coordinamos los siguientes pasos.</p>
             </div>
@@ -275,9 +321,9 @@ export default function PublicProposalPage() {
               <div className="absolute -top-24 -right-24 w-48 h-48 rounded-full bg-[var(--proposal-accent)]/10 blur-3xl" />
               <div className="relative">
                 <p className="text-[9px] uppercase tracking-[.25em] text-neutral-500">Inversión propuesta</p>
-                <p className="text-5xl md:text-6xl font-black tracking-tighter mt-3">{pricing.price ? `$${Number(pricing.price).toLocaleString('es-MX')}` : 'Por definir'}</p>
-                {pricing.price && <p className="text-xs uppercase tracking-widest text-neutral-500 mt-2">{pricing.currency} · {pricing.period}</p>}
-                <p className="text-xs text-neutral-500 mt-5">{pricing.note}</p>
+                <p className="mt-3 whitespace-pre-line break-words text-2xl font-black leading-tight tracking-tight md:text-4xl">{formattedPrice}</p>
+                {!displayPrice && pricing.price && <p className="text-xs uppercase tracking-widest text-neutral-500 mt-2">{pricing.currency} · {pricing.period}</p>}
+                {pricing.note && <p className="mt-5 whitespace-pre-line text-xs text-neutral-500">{pricing.note}</p>}
                 <a
                   href={whatsappUrl}
                   target="_blank"
@@ -312,7 +358,7 @@ export default function PublicProposalPage() {
       <footer className="bg-black text-white px-5 md:px-10 py-10 relative">
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--proposal-accent)]/30 to-transparent" />
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row gap-6 justify-between items-center">
-          {hero.clientLogo ? <span className="inline-flex items-center justify-center rounded-xl bg-white px-3 py-1.5 w-32 h-12"><img src={hero.clientLogo} alt={`Logo de ${proposal.client_name}`} className="max-w-full max-h-full object-contain" /></span> : <img src={mnuBlanco} alt="mnü" className="h-6" />}
+          {hero.clientLogo ? <img src={hero.clientLogo} alt={`Logo de ${proposal.client_name}`} className="h-10 max-w-32 object-contain" /> : <img src={mnuBlanco} alt="mnü" className="h-6" />}
           <p className="text-[9px] uppercase tracking-[.25em] text-neutral-600">Propuesta preparada especialmente para {proposal.client_name}</p>
         </div>
       </footer>
